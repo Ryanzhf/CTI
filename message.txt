@@ -1,0 +1,66 @@
+I'm attaching 6 CSV files from my team's ransomware data-leak-site (DLS) research and our project
+brief. Each CSV was scraped from a different ransomware group's leak site by a different teammate.
+Headers, formats and even which fields exist differ between files. Some files may be missing
+fields entirely. I need to find those gaps BEFORE merging so my teammates can rescrape.
+
+Work in TWO PHASES. Do not start Phase 2 until I confirm.
+
+========================
+PHASE 1 - INSPECT AND REPORT (no merging yet)
+========================
+1. Read every file. For each file report:
+   - file name, row count, the ransomware group(s) it covers
+   - every column: original header, what it appears to contain (from actual values, not just the
+     header name), 3 example values, % blank, detected format (e.g. date format, units)
+   - the date range of the rows, and how many fall inside 2026-01-01 to 2026-09-30
+     (the brief says data outside this period is invalid)
+
+2. Read the project brief and list the data fields needed to answer each question
+   (e.g. Q1 needs country, Q6 needs company size/revenue, Q7 needs industry, Q8 needs the types of
+   data stolen). From this, derive the list of fields the merged dataset needs.
+
+3. Propose a UNIFIED SCHEMA based on what the files actually contain plus what the brief needs.
+   For each proposed column give: name, definition, format/allowed values, and which question(s)
+   it supports. Mark each column CRITICAL or OPTIONAL.
+   At minimum treat these as CRITICAL: group, victim name, posting/discovery date, and some
+   description or data-type field (needed for Q8).
+
+4. Build a COVERAGE MATRIX: rows = files, columns = unified schema fields. Each cell is one of:
+   - PRESENT     - a column directly provides it (name the source column)
+   - DERIVABLE   - can be computed from other columns in that file (say how, e.g. "country from
+                   .sg domain", "data types from description keywords", "GB from '1.2TB' text")
+   - ENRICHABLE  - not in the file, but could be filled by cross-referencing an aggregator such as
+                   ransomware.live by victim name/domain (the brief allows aggregators for cross-referencing)
+   - MISSING     - cannot be obtained without going back to the leak site
+
+5. Give me a RESCRAPE LIST: for each file with any CRITICAL field marked MISSING, state
+   - the file and group
+   - exactly which fields are missing and which brief questions that breaks
+   - what the teammate should capture when they rescrape (e.g. "the post date shown on each
+     victim card", "the victim detail page description")
+   Also flag files with serious quality problems even if the column exists: e.g. >20% blank
+   dates, dates that look like scrape time instead of post time (all rows share one date),
+   most rows outside Jan-Sep 2026, duplicate rows, truncated descriptions.
+
+6. Flag anything ambiguous (e.g. a column called "date" that could be post date, attack date or
+   scrape date) and ask me what it is. Don't assume.
+
+Then STOP and wait for my reply.
+
+========================
+PHASE 2 - NORMALISE (only after I confirm the schema)
+========================
+Write a Python (pandas) script `normalize_all.py` that:
+- maps every file to the confirmed schema, with the per-file column mappings, value mappings
+  (country name -> ISO-2 code, industry -> fixed category list, data-type keywords -> fixed
+  categories, units -> GB / USD millions) in clearly labelled dictionaries at the top so we can edit them
+- keeps only rows dated 2026-01-01 to 2026-09-30 and reports drops per file with reasons
+- adds: source_file, needs_review (TRUE when a value couldn't be determined confidently),
+  notes (reason for the flag), and multi_group_claim (TRUE when the same victim appears under more
+  than one group; do NOT delete these, as they're evidence for our question on re-used leaks)
+- removes exact duplicates within the same group only
+- NEVER invents or guesses values: if a value can't be read or derived, leave it blank and flag it.
+  Don't infer country from generic domains like .com
+- writes all_groups_2026.csv (utf-8-sig, no cell starting with = + @)
+Run it and give me: rows per group, rows per month per group, % blank per column per group,
+count of needs_review rows, count of multi-group claims, and any values you couldn't map.
